@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>人物記事本</title>
+<meta name="description" content="每個人一張卡片，記錄細節、分類與搜尋。資料只存在自己的裝置上。">
+<meta name="theme-color" content="#f3f5f7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="人物記事本">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+html{-webkit-text-size-adjust:100%}
+html,body{margin:0}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+/* Layout: light page; toolbar, category filter, then cards grouped by category (favorite categories first) */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --soft:#f3f5f7; --line:#e3e7eb;
+  --fg:#1c1917; --muted:#78716c; --accent:#1c1917; --accent-fg:#ffffff;
+  --mark:#fde68a; --danger:#b91c1c; --warn:#92400e; --warn-bg:#fffbeb; --gold:#d4a017;
+  --font:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --radius:14px;
+}
+/* Always light, even when the phone is in dark mode */
+:root{color-scheme:light}
+/* Morandi palettes, picked by the viewer */
+:root[data-palette="grey"]  {--bg:#f3f4f5;--soft:#ebedef;--line:#dfe2e5;--accent:#5f6670}
+:root[data-palette="purple"]{--bg:#f3f0f5;--soft:#ebe6ef;--line:#ded7e4;--accent:#7d6d8a}
+:root[data-palette="pink"]  {--bg:#f7f0ef;--soft:#f0e5e3;--line:#e6d6d3;--accent:#a07a77}
+:root[data-palette="green"] {--bg:#eff3ef;--soft:#e5ebe5;--line:#d6e0d7;--accent:#6f8571}
+:root[data-palette="blue"]  {--bg:#eef2f5;--soft:#e3eaf0;--line:#d3dde6;--accent:#6a8296}
+:root[data-palette="orange"]{--bg:#f7f1ea;--soft:#f0e6db;--line:#e6d7c7;--accent:#ad805f}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.65}
+.wrap{max-width:1000px;margin:0 auto;padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 16px}
+h1{font-size:1.35rem;font-weight:700;margin:0;letter-spacing:.04em}
+.sub{font-size:.8rem;color:var(--muted)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.palette{display:flex;align-items:center;gap:6px;padding:0 4px}
+@media (max-width:560px){.tools{width:100%}.palette{width:100%;padding:0}.tools>button{flex:1 1 0}}
+.palette-label{font-size:.8rem;color:var(--muted);margin-right:2px}
+.swatch{width:28px;height:28px;min-height:0;padding:0;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+.swatch[aria-pressed="true"]{box-shadow:0 0 0 2px var(--fg)}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:7px 14px;min-height:40px}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:500}
+button.link{border:none;background:none;color:var(--muted);padding:2px 6px;min-height:30px;font-size:.85rem}
+button.link:hover{color:var(--fg)}
+button.link.danger{color:var(--danger)}
+button.danger.solid{background:var(--danger);border-color:var(--danger);color:#fff}
+input,textarea,select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+textarea{resize:vertical;line-height:1.6}
+.bar{display:flex;flex-wrap:wrap;gap:10px}
+.search{position:relative;flex:1 1 280px}
+.search input{padding-left:40px;min-height:48px;font-size:1.05rem;background:var(--surface)}
+.search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.add-person{display:flex;gap:8px;flex:1 1 320px}
+.add-person input{min-width:0;min-height:48px;flex:1 1 auto}
+.add-person select{width:auto;min-height:48px;flex:0 0 auto}
+.add-person button{min-height:48px;white-space:nowrap}
+.catbar{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin;align-items:center}
+.cchip{flex:0 0 auto;border-radius:999px;padding:5px 14px;min-height:38px;display:inline-flex;gap:6px;align-items:center}
+.cchip .n{font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.cchip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.cchip[aria-pressed="true"] .n{color:var(--accent-fg);opacity:.8}
+.cchip .fs{color:var(--gold)}
+.cchip[aria-pressed="true"] .fs{color:var(--accent-fg)}
+.manage{flex:0 0 auto;border-style:dashed;border-radius:999px;min-height:38px;padding:5px 14px;color:var(--muted)}
+.banner{border-radius:12px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;font-size:.9rem;border:1px solid var(--line);background:var(--surface)}
+.banner.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.banner.danger{color:var(--danger);border-color:var(--danger)}
+.status{font-size:.88rem;color:var(--muted);font-variant-numeric:tabular-nums;min-height:1.4em}
+.groups{display:flex;flex-direction:column;gap:26px}
+.group{display:flex;flex-direction:column;gap:12px}
+.ghead{display:flex;align-items:baseline;gap:10px;margin:0;font-size:1.05rem;font-weight:700;letter-spacing:.06em}
+.ghead .fs{color:var(--gold)}
+.ghead .n{font-size:.8rem;font-weight:400;color:var(--muted);letter-spacing:0}
+.ghead::after{content:"";flex:1;border-top:1px solid var(--line);align-self:center}
+.cards{display:grid;grid-template-columns:1fr;gap:18px;align-items:stretch}
+@media (min-width:760px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.pcard{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px 20px 16px;display:flex;flex-direction:column;gap:12px}
+.pcard .add-detail,.pcard .addbtn{margin-top:auto}
+.addbtn{align-self:flex-start;border-style:dashed;color:var(--muted);border-radius:999px;padding:5px 16px;min-height:38px}
+.addbtn:hover{color:var(--fg)}
+.pcard.flash{border-color:var(--fg)}
+.pcard.folded{align-self:start;padding-block:14px;gap:0}
+.fold{border:none;background:none;min-height:36px;padding:0 6px;font-size:1rem;color:var(--muted);margin-left:auto;align-self:center}
+.fold:hover{color:var(--fg)}
+.statusrow{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.foldall{border-radius:999px;min-height:36px;padding:4px 14px;font-size:.88rem}
+.phead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 10px}
+.star{border:none;background:none;padding:0 2px;min-height:0;font-size:1.6rem;line-height:1;color:var(--line);align-self:center}
+.star:hover{color:var(--muted)}
+.star[aria-pressed="true"]{color:var(--gold)}
+.pname{font-size:1.75rem;font-weight:700;margin:0;line-height:1.25;letter-spacing:.02em;overflow-wrap:anywhere}
+.pmeta{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;width:100%}
+.catsel{width:auto;font-size:.8rem;padding:2px 26px 2px 10px;min-height:28px;border-radius:999px;background-color:var(--soft);border-color:transparent;color:var(--fg)}
+.pactions{display:flex;gap:2px;margin-left:auto}
+.details{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.detail{display:grid;grid-template-columns:auto 1fr;gap:2px 14px;padding:10px 0;border-top:1px solid var(--line)}
+.detail:first-child{border-top:none;padding-top:2px}
+.detail time{font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:.15em;white-space:nowrap}
+.dbody{min-width:0;display:flex;flex-direction:column;gap:2px}
+.dtext{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.drow{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:2px 6px;font-size:.78rem;color:var(--muted)}
+.drow .edited{margin-right:auto}
+.none{color:var(--muted);font-size:.9rem;margin:0}
+.add-detail{display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px dashed var(--line)}
+.add-detail textarea{min-height:64px;background:var(--soft);border-color:transparent}
+.add-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.hint{font-size:.8rem;color:var(--muted);margin:0}
+.datefield{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted)}
+.datefield input{width:auto;padding:6px 10px;min-height:38px;font-size:.9rem;background:var(--surface);font-variant-numeric:tabular-nums}
+.drow .datefield{margin-right:auto}
+.confirm{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end;font-size:.85rem;color:var(--danger)}
+.confirm button{min-height:34px;padding:4px 12px}
+.rename{display:flex;gap:8px;width:100%}
+.rename input{font-size:1.3rem;font-weight:700;min-width:0}
+.sample{font-size:.72rem;border:1px dashed var(--muted);border-radius:6px;padding:0 6px;color:var(--muted)}
+mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 1px}
+.empty{text-align:center;color:var(--muted);padding:40px 16px;border:1px dashed var(--line);border-radius:var(--radius);background:var(--surface)}
+dialog{border:1px solid var(--line);border-radius:16px;padding:0;background:var(--surface);color:var(--fg);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 48px)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+.dlg{padding:20px;display:flex;flex-direction:column;gap:12px}
+.dlg h3{margin:0;font-size:1.15rem}
+.dlg textarea{min-height:160px;font-size:.8rem;font-family:ui-monospace,Menlo,monospace}
+.dlg .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.catlist{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.catrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.catrow input{flex:1 1 140px;min-width:0;padding:8px 10px}
+.catrow button{min-height:38px;padding:4px 10px}
+.catrow .star{font-size:1.4rem;min-height:38px}
+.catrow .confirm{width:100%}
+.catadd{display:flex;gap:8px}
+.catadd input{min-width:0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:.9rem;z-index:20;max-width:calc(100vw - 32px)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>人物記事本</h1>
+      <div class="sub">資料只存在這台裝置的瀏覽器裡，不會上傳<span id="last-backup"></span></div>
+    </div>
+    <div class="tools">
+      <div class="palette" id="palette" role="group" aria-label="選擇顏色">
+        <span class="palette-label">顏色</span>
+        <button type="button" class="swatch" data-pal="grey" style="background:#5f6670" title="霧灰" aria-label="霧灰"></button>
+        <button type="button" class="swatch" data-pal="purple" style="background:#7d6d8a" title="藕紫" aria-label="藕紫"></button>
+        <button type="button" class="swatch" data-pal="pink" style="background:#a07a77" title="豆沙粉" aria-label="豆沙粉"></button>
+        <button type="button" class="swatch" data-pal="green" style="background:#6f8571" title="灰綠" aria-label="灰綠"></button>
+        <button type="button" class="swatch" data-pal="blue" style="background:#6a8296" title="霧藍" aria-label="霧藍"></button>
+        <button type="button" class="swatch" data-pal="orange" style="background:#ad805f" title="杏橘" aria-label="杏橘"></button>
+      </div>
+      <button id="btn-export" type="button">匯出備份</button>
+      <button id="btn-import" type="button">匯入備份</button>
+    </div>
+  </header>
+
+  <div class="bar">
+    <label class="search" for="q">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="搜尋姓名、分類或關鍵字" autocomplete="off" aria-label="搜尋">
+    </label>
+    <form class="add-person" id="add-person-form">
+      <input id="new-person" type="text" placeholder="新增人物姓名" aria-label="新增人物姓名" maxlength="40">
+      <select id="new-person-cat" aria-label="分類"></select>
+      <button type="submit" class="primary">新增人物</button>
+    </form>
+  </div>
+
+  <div class="catbar" id="catbar" role="group" aria-label="依分類篩選"></div>
+  <div id="banners"></div>
+  <div class="statusrow"><div class="status" id="status" role="status"></div><button type="button" id="btn-fold" class="foldall" hidden>全部收合</button></div>
+  <div class="groups" id="groups"></div>
+</div>
+
+<dialog id="dlg-cats"><div class="dlg">
+  <h3>管理分類</h3>
+  <p class="hint">點 ☆ 設為最愛分類，最愛分類會排在最上面。用 ↑ ↓ 調整順序。</p>
+  <ul class="catlist" id="catlist"></ul>
+  <form class="catadd" id="catadd"><input id="new-cat" maxlength="20" placeholder="新增分類，例如：同事" aria-label="新分類名稱"><button type="submit" class="primary">新增</button></form>
+  <div class="row"><button type="button" id="cats-close">完成</button></div>
+</div></dialog>
+
+<dialog id="dlg-export"><div class="dlg">
+  <h3>匯出備份</h3>
+  <p class="hint">無法直接存檔。請按「複製」，再貼到「備忘錄」或傳給自己保存。要還原時，用「匯入備份」貼回來即可。</p>
+  <textarea id="export-text" readonly></textarea>
+  <div class="row"><button type="button" id="export-close">關閉</button><button type="button" class="primary" id="export-copy">複製</button></div>
+</div></dialog>
+
+<dialog id="dlg-import"><div class="dlg">
+  <h3>匯入備份</h3>
+  <p class="hint">選擇之前匯出的 .json 檔，或把複製的備份內容貼在下面。匯入會和現有資料合併，不會刪掉任何資料。</p>
+  <input type="file" id="import-file" accept=".json,application/json,text/plain">
+  <textarea id="import-text" placeholder="或在這裡貼上備份內容"></textarea>
+  <p class="hint" id="import-msg" role="status"></p>
+  <div class="row"><button type="button" id="import-close">取消</button><button type="button" class="primary" id="import-go">匯入</button></div>
+</div></dialog>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+(function(){
+  const KEY = "people-notes-v1";
+  const $ = id => document.getElementById(id);
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pad = n => String(n).padStart(2,"0");
+  const ymd = ts => { const d=new Date(ts); return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}`; };
+  const toInput = ts => { const d=new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+  function fromInput(str, refTs){
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str||""); if(!m) return refTs;
+    const r = new Date(refTs);
+    return new Date(+m[1], +m[2]-1, +m[3], r.getHours(), r.getMinutes(), r.getSeconds()).getTime();
+  }
+  const NONE = "__none";
+  const defaultCats = () => [{id:"c-family",name:"家人"},{id:"c-friend",name:"朋友"},{id:"c-client",name:"客戶"}];
+
+  let state = {people:[], notes:[], categories:defaultCats(), lastBackup:null};
+  let sample=false, storageOK=true, downloads=null;
+  let query="", filterCat=null, editing=null, confirmDel=null, confirmPerson=null, renaming=null, confirmCat=null;
+  let drafts={}, dateDrafts={};
+  const openAdd = new Set();
+  let collapsed = new Set();
+  try{ collapsed = new Set(JSON.parse(localStorage.getItem(KEY+"-collapsed")||"[]")); }catch(e){}
+  function saveCollapsed(){ try{ localStorage.setItem(KEY+"-collapsed", JSON.stringify([...collapsed])); }catch(e){} }
+
+  function sampleData(){
+    const now=Date.now(), day=86400000;
+    return {categories:[{id:"c-family",name:"家人",fav:true},{id:"c-friend",name:"朋友"},{id:"c-client",name:"客戶"}],
+      people:[{id:"s1",name:"王小明",cat:"c-friend"},{id:"s2",name:"林美華",cat:"c-client"},{id:"s3",name:"陳阿姨",cat:"c-family"}],
+      notes:[
+        {id:"n1",personId:"s1",text:"生日是 3 月 14 日，喜歡黑咖啡不加糖。",createdAt:now-40*day},
+        {id:"n2",personId:"s1",text:"女兒今年上小學一年級。",createdAt:now-12*day},
+        {id:"n3",personId:"s2",text:"對花生過敏，聚餐要避開。",createdAt:now-20*day},
+        {id:"n4",personId:"s2",text:"月底要搬家到台中。",createdAt:now-day},
+        {id:"n5",personId:"s3",text:"膝蓋不好，爬樓梯要慢慢來。",createdAt:now-5*day}
+      ], lastBackup:null};
+  }
+  function load(){
+    try{
+      const raw=localStorage.getItem(KEY);
+      if(raw){ const d=JSON.parse(raw); state={people:d.people||[], notes:d.notes||[], categories:Array.isArray(d.categories)?d.categories:defaultCats(), lastBackup:d.lastBackup||null}; return; }
+    }catch(e){ storageOK=false; }
+    state=sampleData(); sample=true;
+  }
+  function save(){
+    if(sample) return;
+    try{ localStorage.setItem(KEY, JSON.stringify(state)); storageOK=true; }
+    catch(e){ storageOK=false; toast("儲存失敗：瀏覽器不允許存資料，請立刻匯出備份"); }
+  }
+  function saveDrafts(){ try{ localStorage.setItem(KEY+"-drafts", JSON.stringify(drafts)); }catch(e){} }
+  function leaveSample(){
+    if(!sample) return;
+    sample=false; state={people:[], notes:[], categories:defaultCats(), lastBackup:null}; drafts={}; filterCat=null;
+    try{ navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(()=>{}); }catch(e){}
+  }
+  function needStart(){ toast("這是範例資料。請先按「清除範例，開始使用」"); }
+
+  let toastTimer;
+  function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.hidden=true,2600); }
+
+  const terms = () => query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  function hl(text, ts){
+    if(!ts.length) return esc(text);
+    const re=new RegExp("("+ts.map(reEsc).join("|")+")","gi");
+    return text.split(re).map((part,i)=> i%2 ? "<mark>"+esc(part)+"</mark>" : esc(part)).join("");
+  }
+  const detailsOf = pid => state.notes.filter(n=>n.personId===pid).sort((a,b)=>a.createdAt-b.createdAt);
+  const catOf = p => state.categories.find(c=>c.id===p.cat) || null;
+  const sortedCats = () => state.categories.map((c,i)=>({c,i})).sort((a,b)=>((b.c.fav?1:0)-(a.c.fav?1:0)) || a.i-b.i).map(x=>x.c);
+  const byPerson = (a,b) => ((b.fav?1:0)-(a.fav?1:0)) || a.name.localeCompare(b.name,"zh-Hant");
+
+  function matches(p, ts){
+    if(!ts.length) return true;
+    const c=catOf(p);
+    const hay=(p.name+" "+(c?c.name:"未分類")+" "+detailsOf(p.id).map(n=>n.text).join(" ")).toLowerCase();
+    return ts.every(t=>hay.includes(t));
+  }
+  function inFilter(p){
+    if(filterCat===null) return true;
+    const c=catOf(p);
+    return filterCat===NONE ? !c : (c && c.id===filterCat);
+  }
+
+  function renderBanners(){
+    const out=[];
+    if(sample) out.push(`<div class="banner"><span>目前顯示的是<strong>範例資料</strong>，不會被儲存。新增第一位人物時會自動清除範例。</span><button type="button" class="primary" id="btn-start">清除範例，開始使用</button></div>`);
+    if(!storageOK) out.push(`<div class="banner danger"><span>這個瀏覽器目前無法保存資料（可能是私密瀏覽）。關掉頁面後資料會消失，請先匯出備份。</span></div>`);
+    if(!sample && state.notes.length){
+      const days=state.lastBackup ? Math.floor((Date.now()-state.lastBackup)/86400000) : null;
+      if(days===null || days>=7) out.push(`<div class="banner warn"><span>${days===null?"你還沒有備份過。":`距離上次備份已經 ${days} 天。`}iPhone 可能會自動清除網頁資料，建議現在備份一次。</span><button type="button" id="btn-export-2">匯出備份</button></div>`);
+    }
+    $("banners").innerHTML=out.join("");
+    const lb=state.lastBackup; $("last-backup").textContent = (!sample && lb) ? ` · 上次備份 ${ymd(lb)} ${pad(new Date(lb).getHours())}:${pad(new Date(lb).getMinutes())}` : "";
+    const s=$("btn-start"); if(s) s.onclick=()=>{ leaveSample(); save(); render(); $("new-person").focus(); };
+    const e=$("btn-export-2"); if(e) e.onclick=doExport;
+  }
+
+  function catOptions(selected){
+    return `<option value="">未分類</option>` + sortedCats().map(c=>`<option value="${esc(c.id)}"${c.id===selected?" selected":""}>${c.fav?"★ ":""}${esc(c.name)}</option>`).join("");
+  }
+
+  function renderCatbar(){
+    if(filterCat && filterCat!==NONE && !state.categories.some(c=>c.id===filterCat)) filterCat=null;
+    const count = id => state.people.filter(p => id===NONE ? !catOf(p) : p.cat===id && catOf(p)).length;
+    let h=`<button type="button" class="cchip" data-cat="" aria-pressed="${filterCat===null}">全部<span class="n">${state.people.length}</span></button>`;
+    h+=sortedCats().map(c=>`<button type="button" class="cchip" data-cat="${esc(c.id)}" aria-pressed="${filterCat===c.id}">${c.fav?`<span class="fs">★</span>`:""}${esc(c.name)}<span class="n">${count(c.id)}</span></button>`).join("");
+    const nn=count(NONE); if(nn) h+=`<button type="button" class="cchip" data-cat="${NONE}" aria-pressed="${filterCat===NONE}">未分類<span class="n">${nn}</span></button>`;
+    h+=`<button type="button" class="manage" id="btn-cats">＋ 管理分類</button>`;
+    $("catbar").innerHTML=h;
+    const sel=$("new-person-cat"), keep=sel.value;
+    const def = (filterCat && filterCat!==NONE) ? filterCat : keep;
+    sel.innerHTML=catOptions(def);
+  }
+  $("catbar").addEventListener("click", ev=>{
+    if(ev.target.closest("#btn-cats")){ if(sample) return needStart(); confirmCat=null; renderCatList(); $("dlg-cats").showModal(); return; }
+    const b=ev.target.closest(".cchip"); if(!b) return;
+    filterCat=b.dataset.cat||null; editing=null; confirmDel=null; confirmPerson=null; renaming=null; render();
+  });
+
+  function cardHTML(p, ts){
+    const ds=detailsOf(p.id), last=ds.length?ds[ds.length-1].createdAt:null, c=catOf(p);
+    const folded = !ts.length && collapsed.has(p.id);
+    const foldBtn = `<button type="button" class="fold" data-act="fold" data-pid="${esc(p.id)}" aria-expanded="${!folded}" aria-label="${folded?"展開":"收合"}" title="${folded?"展開":"收合"}">${folded?"▸ 展開":"▾ 收合"}</button>`;
+    let head;
+    if(renaming===p.id){
+      head=`<form class="rename" data-form="rename" data-pid="${esc(p.id)}"><input id="rename-${esc(p.id)}" value="${esc(p.name)}" maxlength="40" aria-label="新姓名"><button type="submit" class="primary">確定</button><button type="button" data-act="rename-cancel" data-pid="${esc(p.id)}">取消</button></form>`;
+    } else if(confirmPerson===p.id){
+      head=`<h2 class="pname">${hl(p.name,ts)}</h2><div class="confirm" style="width:100%"><span>刪除「${esc(p.name)}」和全部 ${ds.length} 則細節？無法復原。</span><button type="button" class="danger solid" data-act="p-del-yes" data-pid="${esc(p.id)}">刪除</button><button type="button" data-act="p-del-no" data-pid="${esc(p.id)}">取消</button></div>`;
+    } else {
+      const fl=p.fav?"取消最愛":"設為最愛";
+      head=`<button type="button" class="star" data-act="fav" data-pid="${esc(p.id)}" aria-pressed="${!!p.fav}" title="${fl}" aria-label="${fl}">${p.fav?"★":"☆"}</button><h2 class="pname">${hl(p.name,ts)}</h2>${ts.length?"":foldBtn}`
+        +`<div class="pmeta"><select class="catsel" data-catsel="${esc(p.id)}" aria-label="分類">${catOptions(c?c.id:"")}</select><span>${ds.length} 則${last?` · 最近 ${ymd(last)}`:""}</span>${sample?`<span class="sample">範例</span>`:""}<span class="pactions"><button type="button" class="link" data-act="rename" data-pid="${esc(p.id)}">改名</button><button type="button" class="link danger" data-act="p-del" data-pid="${esc(p.id)}">刪除</button></span></div>`;
+    }
+    const list = ds.length ? `<ol class="details">${ds.map(n=>{
+      if(editing===n.id) return `<li class="detail"><time>${ymd(n.createdAt)}</time><div class="dbody"><textarea id="edit-${esc(n.id)}" rows="3" aria-label="修改細節">${esc(n.text)}</textarea><div class="drow"><label class="datefield">日期 <input type="date" id="edit-date-${esc(n.id)}" value="${toInput(n.createdAt)}" aria-label="修改日期"></label><button type="button" class="link" data-act="cancel" data-id="${esc(n.id)}">取消</button><button type="button" class="primary" data-act="save" data-id="${esc(n.id)}" style="min-height:34px;padding:4px 14px">儲存修改</button></div></div></li>`;
+      const row = confirmDel===n.id
+        ? `<div class="confirm"><span>刪除這則？</span><button type="button" class="danger solid" data-act="del-yes" data-id="${esc(n.id)}">刪除</button><button type="button" data-act="del-no" data-id="${esc(n.id)}">取消</button></div>`
+        : `<div class="drow">${n.updatedAt?`<span class="edited">修改於 ${ymd(n.updatedAt)}</span>`:""}<button type="button" class="link" data-act="edit" data-id="${esc(n.id)}">修改</button><button type="button" class="link danger" data-act="del" data-id="${esc(n.id)}">刪除</button></div>`;
+      return `<li class="detail"><time datetime="${toInput(n.createdAt)}">${ymd(n.createdAt)}</time><div class="dbody"><p class="dtext">${hl(n.text,ts)}</p>${row}</div></li>`;
+    }).join("")}</ol>` : `<p class="none">還沒有細節，在下面新增第一則。</p>`;
+    const isOpen = openAdd.has(p.id) || !!drafts[p.id];
+    const add = isOpen
+      ? `<form class="add-detail" data-form="add" data-pid="${esc(p.id)}"><textarea id="add-${esc(p.id)}" data-pid="${esc(p.id)}" rows="2" placeholder="新增一則關於${esc(p.name)}的細節…" aria-label="新增細節">${esc(drafts[p.id]||"")}</textarea><div class="add-row"><label class="datefield">日期 <input type="date" id="add-date-${esc(p.id)}" data-pid-date="${esc(p.id)}" value="${dateDrafts[p.id]||toInput(Date.now())}" aria-label="細節日期"></label><span style="display:flex;gap:6px"><button type="button" data-act="close-add" data-pid="${esc(p.id)}">取消</button><button type="submit" class="primary">儲存</button></span></div><p class="hint">按鍵盤上的 🎤 可以用說的 · 日期預設今天，可以點日期修改</p></form>`
+      : `<button type="button" class="addbtn" data-act="open-add" data-pid="${esc(p.id)}">＋ 新增細節</button>`;
+    if(folded && renaming!==p.id && confirmPerson!==p.id) return `<article class="pcard folded" id="card-${esc(p.id)}"><div class="phead">${head}</div></article>`;
+    return `<article class="pcard" id="card-${esc(p.id)}"><div class="phead">${head}</div>${list}${add}</article>`;
+  }
+
+  function renderGroups(){
+    const ts=terms();
+    const vp=state.people.filter(p=>inFilter(p) && matches(p,ts));
+    $("status").textContent = ts.length ? `找到 ${vp.length} 位（搜尋時全部展開）` : (state.people.length ? `共 ${vp.length} 位` : "");
+    const fb=$("btn-fold");
+    fb.hidden = !!ts.length || !vp.length;
+    fb.textContent = vp.length && vp.every(p=>collapsed.has(p.id)) ? "全部展開" : "全部收合";
+    if(!vp.length){
+      $("groups").innerHTML=`<div class="empty">${ts.length?`找不到「${esc(query.trim())}」`:(state.people.length?"這個分類還沒有人。新增人物時可以選擇分類。":"還沒有人物。在上方輸入姓名，按「新增人物」。")}</div>`;
+      return;
+    }
+    const groups=sortedCats().map(c=>({c, people:vp.filter(p=>p.cat===c.id)}));
+    groups.push({c:null, people:vp.filter(p=>!catOf(p))});
+    $("groups").innerHTML=groups.filter(g=>g.people.length).map(g=>
+      `<section class="group"><h3 class="ghead">${g.c&&g.c.fav?`<span class="fs">★</span>`:""}${g.c?esc(g.c.name):"未分類"}<span class="n">${g.people.length} 位</span></h3><div class="cards">${g.people.sort(byPerson).map(p=>cardHTML(p,ts)).join("")}</div></section>`
+    ).join("");
+  }
+  function render(){ renderBanners(); renderCatbar(); renderGroups(); }
+
+  // card interactions
+  $("groups").addEventListener("click", ev=>{
+    const b=ev.target.closest("button[data-act]"); if(!b) return;
+    const act=b.dataset.act, id=b.dataset.id, pid=b.dataset.pid;
+    const n=id?state.notes.find(x=>x.id===id):null;
+    switch(act){
+      case "fold": if(collapsed.has(pid)) collapsed.delete(pid); else collapsed.add(pid); saveCollapsed(); renderGroups(); break;
+      case "open-add": openAdd.add(pid); renderGroups(); { const t=$("add-"+pid); if(t) t.focus(); } break;
+      case "close-add": openAdd.delete(pid); delete drafts[pid]; delete dateDrafts[pid]; saveDrafts(); renderGroups(); break;
+      case "edit": editing=id; confirmDel=null; renderGroups(); { const t=$("edit-"+id); if(t){ t.focus(); t.setSelectionRange(t.value.length,t.value.length);} } break;
+      case "cancel": editing=null; renderGroups(); break;
+      case "save": { if(sample) return needStart(); const v=$("edit-"+id).value.trim(); const nd=fromInput($("edit-date-"+id).value, n?n.createdAt:Date.now());
+        if(v && n && (v!==n.text || nd!==n.createdAt)){ n.text=v; n.createdAt=nd; n.updatedAt=Date.now(); save(); toast("已修改"); } editing=null; renderGroups(); break; }
+      case "del": confirmDel=id; editing=null; renderGroups(); break;
+      case "del-no": confirmDel=null; renderGroups(); break;
+      case "del-yes": if(sample) return needStart(); state.notes=state.notes.filter(x=>x.id!==id); confirmDel=null; save(); render(); toast("已刪除"); break;
+      case "fav": { if(sample) return needStart(); const p=state.people.find(x=>x.id===pid); if(!p) break; p.fav=!p.fav; if(!p.fav) delete p.fav; save(); renderGroups(); toast(p.fav?`已把「${p.name}」設為最愛`:`已取消「${p.name}」的最愛`); break; }
+      case "rename": renaming=pid; confirmPerson=null; renderGroups(); { const i=$("rename-"+pid); if(i){ i.focus(); i.select(); } } break;
+      case "rename-cancel": renaming=null; renderGroups(); break;
+      case "p-del": confirmPerson=pid; renaming=null; renderGroups(); break;
+      case "p-del-no": confirmPerson=null; renderGroups(); break;
+      case "p-del-yes": if(sample) return needStart(); state.notes=state.notes.filter(x=>x.personId!==pid); state.people=state.people.filter(p=>p.id!==pid); delete drafts[pid]; saveDrafts(); confirmPerson=null; save(); render(); toast("已刪除"); break;
+    }
+  });
+  $("groups").addEventListener("submit", ev=>{
+    const f=ev.target.closest("form[data-form]"); if(!f) return;
+    ev.preventDefault();
+    const pid=f.dataset.pid;
+    if(sample) return needStart();
+    if(f.dataset.form==="add"){
+      const t=$("add-"+pid), text=t.value.trim();
+      if(!text){ toast("內容是空的"); t.focus(); return; }
+      state.notes.push({id:uid(), personId:pid, text, createdAt:fromInput($("add-date-"+pid).value, Date.now())});
+      openAdd.delete(pid); delete drafts[pid]; delete dateDrafts[pid]; saveDrafts(); save(); render();
+      toast("已新增");
+    } else if(f.dataset.form==="rename"){
+      const p=state.people.find(x=>x.id===pid), v=$("rename-"+pid).value.trim();
+      if(p && v){ p.name=v; save(); }
+      renaming=null; renderGroups();
+    }
+  });
+  $("groups").addEventListener("input", ev=>{
+    const t=ev.target; if(t.tagName==="TEXTAREA" && t.dataset.pid){ drafts[t.dataset.pid]=t.value; saveDrafts(); }
+  });
+  $("groups").addEventListener("change", ev=>{
+    const t=ev.target;
+    if(t.dataset && t.dataset.pidDate){ dateDrafts[t.dataset.pidDate]=t.value; }
+    if(t.dataset && t.dataset.catsel){
+      if(sample){ needStart(); renderGroups(); return; }
+      const p=state.people.find(x=>x.id===t.dataset.catsel); if(!p) return;
+      if(t.value) p.cat=t.value; else delete p.cat;
+      save(); render();
+      const c=catOf(p); toast(`已把「${p.name}」移到「${c?c.name:"未分類"}」`);
+    }
+  });
+  $("groups").addEventListener("keydown", ev=>{
+    if(ev.key==="Enter" && (ev.metaKey||ev.ctrlKey)){ const f=ev.target.closest("form[data-form]"); if(f) f.requestSubmit(); }
+  });
+
+  $("add-person-form").onsubmit=ev=>{
+    ev.preventDefault();
+    const name=$("new-person").value.trim(); if(!name) return;
+    const catId=$("new-person-cat").value;
+    const catName=(state.categories.find(c=>c.id===catId)||{}).name;
+    leaveSample();
+    let p=state.people.find(x=>x.name===name);
+    if(p) toast("已經有這個人了");
+    else {
+      p={id:uid(), name};
+      const cc=state.categories.find(c=>c.id===catId) || state.categories.find(c=>c.name===catName);
+      if(cc) p.cat=cc.id;
+      state.people.push(p); save(); toast(`已新增「${name}」`);
+    }
+    openAdd.add(p.id); collapsed.delete(p.id); saveCollapsed();
+    $("new-person").value=""; query=""; $("q").value="";
+    if(filterCat!==null && !inFilter(p)) filterCat=null;
+    render();
+    const card=$("card-"+p.id);
+    if(card){ card.scrollIntoView({behavior:"smooth", block:"center"}); card.classList.add("flash"); setTimeout(()=>card.classList.remove("flash"),1500); const t=$("add-"+p.id); if(t) t.focus({preventScroll:true}); }
+  };
+
+  $("btn-fold").onclick=()=>{
+    const vp=state.people.filter(p=>inFilter(p));
+    const allFolded = vp.length && vp.every(p=>collapsed.has(p.id));
+    vp.forEach(p=> allFolded ? collapsed.delete(p.id) : collapsed.add(p.id));
+    saveCollapsed(); renderGroups();
+  };
+
+  let qTimer;
+  $("q").addEventListener("input", ()=>{ clearTimeout(qTimer); qTimer=setTimeout(()=>{ query=$("q").value; editing=null; confirmDel=null; confirmPerson=null; renaming=null; renderGroups(); },120); });
+
+  // category manager
+  function renderCatList(){
+    const cats=state.categories;
+    $("catlist").innerHTML = cats.length ? cats.map((c,i)=>{
+      const n=state.people.filter(p=>p.cat===c.id).length, fl=c.fav?"取消最愛分類":"設為最愛分類";
+      const conf = confirmCat===c.id ? `<div class="confirm"><span>刪除「${esc(c.name)}」？裡面的 ${n} 位會變成未分類，資料不會刪除。</span><button type="button" class="danger solid" data-cact="del-yes" data-cid="${esc(c.id)}">刪除</button><button type="button" data-cact="del-no" data-cid="${esc(c.id)}">取消</button></div>` : "";
+      return `<li class="catrow"><button type="button" class="star" data-cact="fav" data-cid="${esc(c.id)}" aria-pressed="${!!c.fav}" title="${fl}" aria-label="${fl}">${c.fav?"★":"☆"}</button><input value="${esc(c.name)}" data-cname="${esc(c.id)}" maxlength="20" aria-label="分類名稱"><button type="button" data-cact="up" data-cid="${esc(c.id)}" ${i===0?"disabled":""} aria-label="往上">↑</button><button type="button" data-cact="down" data-cid="${esc(c.id)}" ${i===cats.length-1?"disabled":""} aria-label="往下">↓</button><button type="button" class="link danger" data-cact="del" data-cid="${esc(c.id)}">刪除</button>${conf}</li>`;
+    }).join("") : `<li class="hint">還沒有分類。</li>`;
+  }
+  $("catlist").addEventListener("click", ev=>{
+    const b=ev.target.closest("button[data-cact]"); if(!b) return;
+    const cats=state.categories, i=cats.findIndex(c=>c.id===b.dataset.cid); if(i<0) return;
+    const c=cats[i];
+    switch(b.dataset.cact){
+      case "fav": c.fav=!c.fav; if(!c.fav) delete c.fav; break;
+      case "up": if(i>0) [cats[i-1],cats[i]]=[cats[i],cats[i-1]]; break;
+      case "down": if(i<cats.length-1) [cats[i+1],cats[i]]=[cats[i],cats[i+1]]; break;
+      case "del": confirmCat=c.id; renderCatList(); return;
+      case "del-no": confirmCat=null; renderCatList(); return;
+      case "del-yes": state.categories=cats.filter(x=>x.id!==c.id); state.people.forEach(p=>{ if(p.cat===c.id) delete p.cat; }); confirmCat=null; toast(`已刪除分類「${c.name}」`); break;
+    }
+    save(); renderCatList(); render();
+  });
+  $("catlist").addEventListener("change", ev=>{
+    const t=ev.target; if(!t.dataset.cname) return;
+    const c=state.categories.find(x=>x.id===t.dataset.cname); const v=t.value.trim();
+    if(c && v){ c.name=v; save(); render(); } else if(c){ t.value=c.name; }
+  });
+  $("catadd").onsubmit=ev=>{
+    ev.preventDefault();
+    const v=$("new-cat").value.trim(); if(!v) return;
+    if(state.categories.some(c=>c.name===v)){ toast("已經有這個分類了"); return; }
+    state.categories.push({id:"c-"+uid(), name:v}); $("new-cat").value="";
+    save(); renderCatList(); render(); toast(`已新增分類「${v}」`);
+  };
+  $("cats-close").onclick=()=>$("dlg-cats").close();
+
+  // backup
+  function backupJSON(){ return JSON.stringify({app:"people-notes", version:2, exportedAt:new Date().toISOString(), categories:state.categories, people:state.people, notes:state.notes}, null, 2); }
+  function markBackedUp(){ state.lastBackup=Date.now(); save(); renderBanners(); }
+  async function doExport(){
+    if(sample) return needStart();
+    const json=backupJSON(), d=new Date();
+    const filename=`人物記事本備份-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.json`;
+    const isTouch = navigator.maxTouchPoints > 0;
+    try{
+      const file = new File([json], filename, {type:"application/json"});
+      if(isTouch && navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], title:"人物記事本備份"});
+        markBackedUp(); toast("備份完成，記得存到「檔案」或傳給自己"); return;
+      }
+    }catch(e){ if(e && e.name==="AbortError"){ toast("已取消備份"); return; } }
+    try{
+      const url = URL.createObjectURL(new Blob([json], {type:"application/json"}));
+      const a = document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      markBackedUp(); toast("備份檔已下載"); return;
+    }catch(e){}
+    $("export-text").value=json; $("dlg-export").showModal();
+  }
+  $("btn-export").onclick=doExport;
+  $("export-close").onclick=()=>$("dlg-export").close();
+  $("export-copy").onclick=()=>{
+    const t=$("export-text"), done=()=>{ markBackedUp(); toast("已複製，請貼到備忘錄保存"); };
+    try{ navigator.clipboard.writeText(t.value).then(done, ()=>{ t.select(); toast("請長按選取文字後複製"); }); }
+    catch(e){ t.select(); toast("請長按選取文字後複製"); }
+  };
+  $("btn-import").onclick=()=>{ $("import-msg").textContent=""; $("import-text").value=""; $("import-file").value=""; $("dlg-import").showModal(); };
+  $("import-close").onclick=()=>$("dlg-import").close();
+  $("import-file").onchange=()=>{
+    const f=$("import-file").files[0]; if(!f) return;
+    const r=new FileReader(); r.onload=()=>{ $("import-text").value=String(r.result); $("import-msg").textContent=`已讀取「${f.name}」，按「匯入」完成`; }; r.readAsText(f);
+  };
+  $("import-go").onclick=()=>{
+    let d; try{ d=JSON.parse($("import-text").value); }catch(e){ $("import-msg").textContent="看不懂這份內容。請確認是從「匯出備份」複製的完整文字。"; return; }
+    if(!d || !Array.isArray(d.people) || !Array.isArray(d.notes)){ $("import-msg").textContent="這不是人物記事本的備份檔。"; return; }
+    leaveSample();
+    let np=0, nn=0;
+    (Array.isArray(d.categories)?d.categories:[]).forEach(c=>{ if(!c||!c.id||!c.name) return; if(!state.categories.some(x=>x.id===c.id)){ const o={id:String(c.id), name:String(c.name)}; if(c.fav) o.fav=true; state.categories.push(o); } });
+    d.people.forEach(p=>{ if(!p||!p.id||!p.name) return; if(!state.people.some(x=>x.id===p.id)){ const o={id:String(p.id), name:String(p.name)}; if(p.fav) o.fav=true; if(p.cat) o.cat=String(p.cat); state.people.push(o); np++; } });
+    d.notes.forEach(n=>{ if(!n||!n.id||!n.personId||typeof n.text!=="string") return; const i=state.notes.findIndex(x=>x.id===n.id); const o={id:String(n.id), personId:String(n.personId), text:n.text, createdAt:Number(n.createdAt)||Date.now()}; if(n.updatedAt) o.updatedAt=Number(n.updatedAt); if(i<0){ state.notes.push(o); nn++; } else if((o.updatedAt||0)>(state.notes[i].updatedAt||0)) state.notes[i]=o; });
+    save(); $("dlg-import").close(); render(); toast(`匯入完成：新增 ${np} 位人物、${nn} 則細節`);
+  };
+
+  // palette
+  const PALS=["grey","purple","pink","green","blue","orange"];
+  const PAL_NAMES={grey:"霧灰",purple:"藕紫",pink:"豆沙粉",green:"灰綠",blue:"霧藍",orange:"杏橘"};
+  function applyPalette(pal){
+    if(!PALS.includes(pal)) pal="grey";
+    document.documentElement.dataset.palette=pal;
+    document.querySelectorAll(".swatch").forEach(s=>s.setAttribute("aria-pressed", String(s.dataset.pal===pal)));
+  }
+  let savedPal="grey";
+  try{ savedPal=localStorage.getItem(KEY+"-palette")||"grey"; }catch(e){}
+  applyPalette(savedPal);
+  $("palette").addEventListener("click", ev=>{
+    const s=ev.target.closest(".swatch"); if(!s) return;
+    applyPalette(s.dataset.pal);
+    try{ localStorage.setItem(KEY+"-palette", s.dataset.pal); }catch(e){}
+    toast(`已換成${PAL_NAMES[s.dataset.pal]}`);
+  });
+
+  load();
+  try{ const dr=localStorage.getItem(KEY+"-drafts"); if(dr && !sample) drafts=JSON.parse(dr)||{}; }catch(e){}
+  render();
+  try{ if(!sample && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{}); }catch(e){}
+})();
+</script>
+</body>
+</html>
