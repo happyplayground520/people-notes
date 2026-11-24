@@ -518,7 +518,7 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
     try{
       const file = new File([json], filename, {type:"application/json"});
       if(isTouch && navigator.canShare && navigator.canShare({files:[file]})){
-        await navigator.share({files:[file], title:"人物記事本備份"});
+        await navigator.share({files:[file]});
         markBackedUp(); toast("備份完成，記得存到「檔案」或傳給自己"); return;
       }
     }catch(e){ if(e && e.name==="AbortError"){ toast("已取消備份"); return; } }
